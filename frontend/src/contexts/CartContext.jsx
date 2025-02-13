@@ -1,55 +1,65 @@
-import { createContext, useState, useContext } from 'react'
+import { createContext, useState, useContext, useMemo, useCallback } from 'react';
 
-const CartContext = createContext()
+const CartContext = createContext(null);
 
-export function CartProvider({ children }) {
-  const [cart, setCart] = useState([])
+const CartProvider = ({ children }) => {
+    const [cart, setCart] = useState([]);
 
-  const addToCart = (product) => {
-    setCart(prevCart => {
-      const existingProduct = prevCart.find(item => item._id === product._id)
-      if (existingProduct) {
-        return prevCart.map(item =>
-          item._id === product._id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      }
-      return [...prevCart, { ...product, quantity: 1 }]
-    })
-  }
+    const addToCart = useCallback((product) => {
+        setCart((prevCart) => {
+            const existingProduct = prevCart.find((item) => item._id === product._id);
+            if (existingProduct) {
+                return prevCart.map((item) =>
+                    item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
+                );
+            }
+            return [...prevCart, { ...product, quantity: 1 }];
+        });
+    }, []);
 
-  const removeFromCart = (productId) => {
-    setCart(prevCart => prevCart.filter(item => item._id !== productId))
-  }
+    const removeFromCart = useCallback((productId) => {
+        setCart((prevCart) => prevCart.filter((item) => item._id !== productId));
+    }, []);
 
-  const updateQuantity = (productId, quantity) => {
-    setCart(prevCart =>
-      prevCart.map(item =>
-        item._id === productId
-          ? { ...item, quantity: parseInt(quantity) }
-          : item
-      )
-    )
-  }
+    const updateQuantity = useCallback((productId, quantity) => {
+        setCart((prevCart) =>
+            prevCart.map((item) =>
+                item._id === productId ? { ...item, quantity: Math.max(1, parseInt(quantity, 10)) } : item
+            )
+        );
+    }, []);
 
-  const clearCart = () => {
-    setCart([])
-  }
+    const clearCart = useCallback(() => {
+        setCart([]);
+    }, []);
 
-  return (
-    <CartContext.Provider value={{ 
-      cart, 
-      addToCart, 
-      removeFromCart, 
-      updateQuantity, 
-      clearCart 
-    }}>
-      {children}
-    </CartContext.Provider>
-  )
-}
+    const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
+    const totalPrice = useMemo(() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0), [cart]);
 
-export function useCart() {
-  return useContext(CartContext)
-}
+    const value = useMemo(
+        () => ({
+            cart,
+            addToCart,
+            removeFromCart,
+            updateQuantity,
+            clearCart,
+            totalItems,
+            totalPrice,
+        }),
+        [cart, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalPrice]
+    );
+
+    return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+};
+
+// Hook separado para evitar problemas no HMR
+const useCart = () => {
+    const context = useContext(CartContext);
+    if (!context) {
+        throw new Error('useCart deve ser usado dentro de um CartProvider');
+    }
+    return context;
+};
+
+// Exportações corrigidas para evitar o erro do HMR
+export { CartProvider, useCart };
